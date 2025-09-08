@@ -5,12 +5,12 @@
 [build.environment]
   NODE_ENV = "production"
 
-[[functions]]
+[functions]
   directory = "api"
+  node_bundler = "esbuild"
 
-[functions."api/generate"]
+[functions."generate"]
   runtime = "nodejs20.x"
-  timeout = 60
 
 [[headers]]
   for = "/api/*"
