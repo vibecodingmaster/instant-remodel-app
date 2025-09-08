@@ -54,11 +54,33 @@ export async function generateStyleImage(imageDataUrls: string[], prompt: string
         // Parse successful response
         const data = await response.json();
         
+        console.log('🔍 Backend API Response:', {
+            success: data.success,
+            hasImageUrl: !!data.imageUrl,
+            imageUrlType: typeof data.imageUrl,
+            imageUrlLength: data.imageUrl?.length,
+            imageUrlPrefix: data.imageUrl?.substring(0, 50),
+            fullResponse: data
+        });
+        
         if (!data.success || !data.imageUrl) {
+            console.error('❌ Invalid backend API response format:', data);
             throw new Error(data.message || 'Backend API returned invalid response format');
         }
 
-        console.log('Image generated successfully via backend API');
+        // Validate the base64 data URL format
+        if (!data.imageUrl.startsWith('data:image/')) {
+            console.error('❌ Invalid image URL format. Expected data URL, got:', data.imageUrl.substring(0, 100));
+            throw new Error('Backend returned invalid image format');
+        }
+
+        console.log('✅ Image generated successfully via backend API');
+        console.log('📊 Returning imageUrl:', {
+            length: data.imageUrl.length,
+            prefix: data.imageUrl.substring(0, 50),
+            isValidDataUrl: data.imageUrl.startsWith('data:image/')
+        });
+        
         return data.imageUrl;
 
     } catch (error) {

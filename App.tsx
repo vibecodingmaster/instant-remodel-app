@@ -54,6 +54,44 @@ function App() {
     const dragAreaRef = useRef<HTMLDivElement>(null);
     const isMobile = useMediaQuery('(max-width: 768px)');
 
+    // Debug state changes
+    React.useEffect(() => {
+        console.log('🔄 generatedImages state changed:', {
+            appState,
+            generatedImagesKeys: Object.keys(generatedImages),
+            generatedImagesDetails: Object.entries(generatedImages).map(([style, img]) => ({
+                style,
+                status: img.status,
+                hasUrl: !!img.url,
+                urlLength: img.url?.length,
+                urlPrefix: img.url?.substring(0, 50),
+                isValidDataUrl: img.url?.startsWith('data:image/')
+            }))
+        });
+    }, [generatedImages, appState]);
+
+    // Utility to test if a data URL can be loaded as an image
+    const testDataUrl = async (dataUrl: string, style: string) => {
+        return new Promise<boolean>((resolve) => {
+            const img = new Image();
+            img.onload = () => {
+                console.log(`✅ Data URL test passed for ${style}:`, {
+                    naturalWidth: img.naturalWidth,
+                    naturalHeight: img.naturalHeight,
+                    dataUrlLength: dataUrl.length
+                });
+                resolve(true);
+            };
+            img.onerror = (err) => {
+                console.error(`❌ Data URL test failed for ${style}:`, {
+                    error: err,
+                    dataUrlPrefix: dataUrl.substring(0, 100)
+                });
+                resolve(false);
+            };
+            img.src = dataUrl;
+        });
+    };
 
     const handleImageUpload = (e: ChangeEvent<HTMLInputElement>) => {
         if (e.target.files) {
@@ -97,12 +135,37 @@ function App() {
 
         const processStyle = async (style: string) => {
             try {
+                console.log(`🎨 Processing style: ${style}`);
                 const prompt = `Using the provided image(s) of a room or home exterior, generate a photorealistic remodeled version in a ${style} design style. The new design should be a plausible renovation of the original space, keeping the core structure (windows, doors) in the same location but changing walls, floors, furniture, lighting, and decor to fit the new aesthetic. The output must be a high-quality, photorealistic image.`;
                 const resultUrl = await generateStyleImage(uploadedImages, prompt);
-                setGeneratedImages(prev => ({
-                    ...prev,
-                    [style]: { status: 'done', url: resultUrl },
-                }));
+                
+                console.log(`🎯 Received result for ${style}:`, {
+                    hasUrl: !!resultUrl,
+                    urlType: typeof resultUrl,
+                    urlLength: resultUrl?.length,
+                    urlPrefix: resultUrl?.substring(0, 50),
+                    isValidDataUrl: resultUrl?.startsWith('data:image/')
+                });
+                
+                setGeneratedImages(prev => {
+                    const newState = {
+                        ...prev,
+                        [style]: { status: 'done' as const, url: resultUrl },
+                    };
+                    console.log(`📝 Updated state for ${style}:`, {
+                        style,
+                        status: newState[style].status,
+                        hasUrl: !!newState[style].url,
+                        urlLength: newState[style].url?.length
+                    });
+                    
+                    // Test if the data URL can actually be loaded as an image
+                    if (resultUrl) {
+                        testDataUrl(resultUrl, style);
+                    }
+                    
+                    return newState;
+                });
             } catch (err) {
                 const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
                 setGeneratedImages(prev => ({
@@ -145,10 +208,34 @@ function App() {
         try {
             const prompt = `Using the provided image(s) of a room or home exterior, generate a photorealistic remodeled version in a ${style} design style. The new design should be a plausible renovation of the original space, keeping the core structure (windows, doors) in the same location but changing walls, floors, furniture, lighting, and decor to fit the new aesthetic. The output must be a high-quality, photorealistic image.`;
             const resultUrl = await generateStyleImage(uploadedImages, prompt);
-            setGeneratedImages(prev => ({
-                ...prev,
-                [style]: { status: 'done', url: resultUrl },
-            }));
+            
+            console.log(`🔄 Regenerated result for ${style}:`, {
+                hasUrl: !!resultUrl,
+                urlType: typeof resultUrl,
+                urlLength: resultUrl?.length,
+                urlPrefix: resultUrl?.substring(0, 50),
+                isValidDataUrl: resultUrl?.startsWith('data:image/')
+            });
+            
+            setGeneratedImages(prev => {
+                const newState = {
+                    ...prev,
+                    [style]: { status: 'done' as const, url: resultUrl },
+                };
+                console.log(`🔄 Updated state after regeneration for ${style}:`, {
+                    style,
+                    status: newState[style].status,
+                    hasUrl: !!newState[style].url,
+                    urlLength: newState[style].url?.length
+                });
+                
+                // Test if the data URL can actually be loaded as an image
+                if (resultUrl) {
+                    testDataUrl(resultUrl, style);
+                }
+                
+                return newState;
+            });
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : "An unknown error occurred.";
             setGeneratedImages(prev => ({
@@ -270,24 +357,48 @@ function App() {
                      <>
                         {isMobile ? (
                             <div className="w-full max-w-sm flex-1 overflow-y-auto mt-4 space-y-8 p-4">
-                                {STYLES.map((style) => (
-                                    <div key={style} className="flex justify-center">
-                                         <PolaroidCard
-                                            caption={style}
-                                            status={generatedImages[style]?.status || 'pending'}
-                                            imageUrl={generatedImages[style]?.url}
-                                            error={generatedImages[style]?.error}
-                                            onShake={handleRegenerateStyle}
-                                            onDownload={handleDownloadIndividualImage}
-                                            isMobile={isMobile}
-                                        />
-                                    </div>
-                                ))}
+                                {STYLES.map((style) => {
+                                    const generatedImage = generatedImages[style];
+                                    console.log(`📱 Mobile PolaroidCard props for ${style}:`, {
+                                        style,
+                                        status: generatedImage?.status || 'pending',
+                                        hasUrl: !!generatedImage?.url,
+                                        urlType: typeof generatedImage?.url,
+                                        urlLength: generatedImage?.url?.length,
+                                        urlPrefix: generatedImage?.url?.substring(0, 50),
+                                        isValidDataUrl: generatedImage?.url?.startsWith('data:image/')
+                                    });
+                                    
+                                    return (
+                                        <div key={style} className="flex justify-center">
+                                            <PolaroidCard
+                                                caption={style}
+                                                status={generatedImage?.status || 'pending'}
+                                                imageUrl={generatedImage?.url}
+                                                error={generatedImage?.error}
+                                                onShake={handleRegenerateStyle}
+                                                onDownload={handleDownloadIndividualImage}
+                                                isMobile={isMobile}
+                                            />
+                                        </div>
+                                    );
+                                })}
                             </div>
                         ) : (
                             <div ref={dragAreaRef} className="relative w-full max-w-5xl h-[600px] mt-4">
                                 {STYLES.map((style, index) => {
                                     const { top, left, rotate } = POSITIONS[index];
+                                    const generatedImage = generatedImages[style];
+                                    console.log(`🖥️ Desktop PolaroidCard props for ${style}:`, {
+                                        style,
+                                        status: generatedImage?.status || 'pending',
+                                        hasUrl: !!generatedImage?.url,
+                                        urlType: typeof generatedImage?.url,
+                                        urlLength: generatedImage?.url?.length,
+                                        urlPrefix: generatedImage?.url?.substring(0, 50),
+                                        isValidDataUrl: generatedImage?.url?.startsWith('data:image/')
+                                    });
+                                    
                                     return (
                                         <motion.div
                                             key={style}
@@ -305,9 +416,9 @@ function App() {
                                             <PolaroidCard 
                                                 dragConstraintsRef={dragAreaRef}
                                                 caption={style}
-                                                status={generatedImages[style]?.status || 'pending'}
-                                                imageUrl={generatedImages[style]?.url}
-                                                error={generatedImages[style]?.error}
+                                                status={generatedImage?.status || 'pending'}
+                                                imageUrl={generatedImage?.url}
+                                                error={generatedImage?.error}
                                                 onShake={handleRegenerateStyle}
                                                 onDownload={handleDownloadIndividualImage}
                                                 isMobile={isMobile}

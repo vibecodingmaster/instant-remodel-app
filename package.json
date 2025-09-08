@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:netlify": "netlify dev",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -26,6 +27,7 @@
     "@types/node": "^22.14.0",
     "@types/react": "^18.2.45",
     "@types/react-dom": "^18.2.18",
+    "netlify-cli": "^23.5.1",
     "playwright": "^1.55.0"
   }
 }

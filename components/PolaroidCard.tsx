@@ -111,6 +111,21 @@ const PolaroidCard: React.FC<PolaroidCardProps> = ({ imageUrl, caption, status, 
                 {status === 'error' && <ErrorDisplay />}
                 {status === 'done' && imageUrl && (
                     <>
+                        {/* Debug logging for image URL */}
+                        {(() => {
+                            console.log(`🖼️ PolaroidCard rendering for ${caption}:`, {
+                                status,
+                                hasImageUrl: !!imageUrl,
+                                imageUrlType: typeof imageUrl,
+                                imageUrlLength: imageUrl?.length,
+                                imageUrlPrefix: imageUrl?.substring(0, 50),
+                                isValidDataUrl: imageUrl?.startsWith('data:image/'),
+                                isImageLoaded,
+                                isDeveloped
+                            });
+                            return null;
+                        })()}
+                        
                         <div className={cn(
                             "absolute top-2 right-2 z-20 flex flex-col gap-2 transition-opacity duration-300",
                             !isMobile && "opacity-0 group-hover:opacity-100",
@@ -159,7 +174,25 @@ const PolaroidCard: React.FC<PolaroidCardProps> = ({ imageUrl, caption, status, 
                             key={imageUrl}
                             src={imageUrl}
                             alt={caption}
-                            onLoad={() => setIsImageLoaded(true)}
+                            onLoad={() => {
+                                console.log(`✅ Image loaded successfully for ${caption}:`, {
+                                    imageUrl: imageUrl?.substring(0, 50),
+                                    imageUrlLength: imageUrl?.length,
+                                    naturalWidth: 0, // Will be filled in by img element
+                                    naturalHeight: 0
+                                });
+                                setIsImageLoaded(true);
+                            }}
+                            onError={(e) => {
+                                console.error(`❌ Image failed to load for ${caption}:`, {
+                                    imageUrl: imageUrl?.substring(0, 50),
+                                    imageUrlLength: imageUrl?.length,
+                                    isValidDataUrl: imageUrl?.startsWith('data:image/'),
+                                    error: e,
+                                    errorTarget: e.currentTarget
+                                });
+                                // Don't set isImageLoaded to true on error
+                            }}
                             className={`w-full h-full object-cover transition-all duration-[4000ms] ease-in-out ${
                                 isDeveloped 
                                 ? 'opacity-100 filter-none' 
