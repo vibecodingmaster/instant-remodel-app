@@ -66,6 +66,10 @@ export async function generateStyleImage(imageDataUrls: string[], prompt: string
         console.error("Error calling backend image generation service:", error);
         
         // Provide user-friendly error messages
+        if (errorMessage.includes('IMAGE_GENERATION_NOT_SUPPORTED')) {
+            throw new Error('⚠️ Technical Issue: This application is configured to use Google Gemini API, which cannot generate images. To enable image generation, the application needs to be updated to use an image generation service like DALL-E or Stable Diffusion.');
+        }
+        
         if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
             throw new Error('Network error: Unable to connect to the image generation service. Please check your internet connection and try again.');
         }

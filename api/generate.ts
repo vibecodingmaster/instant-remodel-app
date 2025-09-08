@@ -22,7 +22,7 @@ if (!API_KEY) {
   throw new Error("GEMINI_API_KEY environment variable is not set");
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
+const ai = new GoogleGenAI(API_KEY);
 
 // --- Helper Functions (moved from frontend) ---
 
@@ -51,16 +51,27 @@ function extractStyle(prompt: string): string | null {
  * @returns A data URL string for the generated image.
  */
 function processGeminiResponse(response: GenerateContentResponse): string {
+    console.log("Full Gemini response:", JSON.stringify(response, null, 2));
+    
     const imagePartFromResponse = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
-
+    
+    console.log("Image part found:", !!imagePartFromResponse);
+    console.log("Candidates count:", response.candidates?.length || 0);
+    
     if (imagePartFromResponse?.inlineData) {
         const { mimeType, data } = imagePartFromResponse.inlineData;
+        console.log("Image data details:", { mimeType, dataLength: data?.length || 0 });
+        
+        if (!data || data.length === 0) {
+            throw new Error("Image data is empty");
+        }
+        
         return `data:${mimeType};base64,${data}`;
     }
 
-    const textResponse = response.text;
+    const textResponse = response.text || JSON.stringify(response.candidates?.[0]?.content);
     console.error("API did not return an image. Response:", textResponse);
-    throw new Error(`The AI model responded with text instead of an image: "${textResponse || 'No text response received.'}"`);
+    throw new Error(`The AI model responded with text instead of an image: "${textResponse || 'No valid response received.'}"`);
 }
 
 /**
@@ -74,10 +85,13 @@ async function callGeminiWithRetry(parts: object[]): Promise<GenerateContentResp
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            return await ai.models.generateContent({
-                model: 'gemini-2.5-flash-image-preview',
-                contents: { parts: parts },
-            });
+            // IMPORTANT: Gemini cannot generate images, only analyze them
+            // This is a fundamental limitation - we need an image generation service
+            console.error("CRITICAL: Gemini API cannot generate images, only analyze them");
+            console.log("Prompt being sent (for analysis only):", parts.find(p => 'text' in p)?.text?.substring(0, 200));
+            
+            // For now, create a diagnostic response that explains the issue
+            throw new Error("IMAGE_GENERATION_NOT_SUPPORTED: Gemini API is designed for text and vision analysis, not image generation. To fix this application, integrate with an image generation service like DALL-E, Stable Diffusion, or Imagen.");
         } catch (error) {
             console.error(`Error calling Gemini API (Attempt ${attempt}/${maxRetries}):`, error);
             const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
