@@ -56,28 +56,36 @@ function extractStyle(prompt: string): string | null {
  * @param response The response from the generateContent call.
  * @returns A data URL string for the generated image.
  */
-function processGeminiResponse(response: GenerateContentResponse): string {
+function processGeminiResponse(response: any): string {
     console.log("Full Gemini response:", JSON.stringify(response, null, 2));
     
-    // Look for image parts in the response
-    const imagePartFromResponse = response.candidates?.[0]?.content?.parts?.find(part => part.inlineData);
+    // Look for image parts in the response - handle different possible response structures
+    const candidates = response.candidates || response.response?.candidates;
+    const firstCandidate = candidates?.[0];
+    const parts = firstCandidate?.content?.parts;
     
-    console.log("Image part found:", !!imagePartFromResponse);
-    console.log("Candidates count:", response.candidates?.length || 0);
+    console.log("Candidates count:", candidates?.length || 0);
+    console.log("Parts count:", parts?.length || 0);
     
-    if (imagePartFromResponse?.inlineData) {
-        const { mimeType, data } = imagePartFromResponse.inlineData;
-        console.log("Image data details:", { mimeType, dataLength: data?.length || 0 });
-        
-        if (!data || data.length === 0) {
-            throw new Error("Image data is empty");
+    if (parts && parts.length > 0) {
+        for (const part of parts) {
+            if (part.inlineData) {
+                const { mimeType, data } = part.inlineData;
+                console.log("Image data details:", { mimeType, dataLength: data?.length || 0 });
+                
+                if (!data || data.length === 0) {
+                    throw new Error("Image data is empty");
+                }
+                
+                return `data:${mimeType};base64,${data}`;
+            }
         }
-        
-        return `data:${mimeType};base64,${data}`;
     }
 
     // If no image part found, log the full response for debugging
-    const textResponse = response.text || JSON.stringify(response.candidates?.[0]?.content);
+    const textResponse = firstCandidate?.content?.parts?.find(p => p.text)?.text || 
+                        response.text || 
+                        JSON.stringify(firstCandidate?.content);
     console.error("API did not return an image. Full response:", response);
     throw new Error(`The AI model did not generate an image. Response: "${textResponse || 'No valid response received.'}"`);
 }
@@ -93,14 +101,16 @@ async function callGeminiWithRetry(parts: object[]): Promise<GenerateContentResp
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
-            // Use Gemini 2.5 Flash Image Preview model for image generation
-            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash-image-preview" });
-            
             console.log("Calling Gemini 2.5 Flash Image Preview for image generation");
             console.log("Prompt being sent:", parts.find(p => 'text' in p)?.text?.substring(0, 200));
             
-            const response = await model.generateContent(parts);
-            return response.response;
+            // Use the correct API format for image generation
+            const response = await genAI.models.generateContent({
+                model: "gemini-2.5-flash-image-preview",
+                contents: parts,
+            });
+            
+            return response;
         } catch (error) {
             console.error(`Error calling Gemini API (Attempt ${attempt}/${maxRetries}):`, error);
             const errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
