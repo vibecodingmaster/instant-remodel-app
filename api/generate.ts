@@ -7,6 +7,19 @@
 import { GoogleGenAI } from "@google/genai";
 import type { GenerateContentResponse } from "@google/genai";
 
+// Netlify function types
+interface NetlifyEvent {
+    httpMethod: string;
+    headers: Record<string, string>;
+    body: string | null;
+}
+
+interface NetlifyResponse {
+    statusCode: number;
+    headers: Record<string, string>;
+    body: string;
+}
+
 // Server-side API key access
 const API_KEY = process.env.GEMINI_API_KEY;
 
@@ -144,58 +157,80 @@ async function generateStyleImage(imageDataUrls: string[], prompt: string): Prom
     }
 }
 
-// --- Vercel Serverless Function Handler ---
-export default async function handler(req: any, res: any) {
+// --- Netlify Serverless Function Handler ---
+export default async function handler(event: NetlifyEvent): Promise<NetlifyResponse> {
     // Enable CORS for frontend requests with security restrictions
     const allowedOrigins = process.env.NODE_ENV === 'production' 
-        ? (process.env.ALLOWED_ORIGINS?.split(',') || ['https://yourapp.vercel.app', 'https://yourapp.netlify.app'])
+        ? (process.env.ALLOWED_ORIGINS?.split(',') || ['https://instant-remodel.netlify.app'])
         : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:5174'];
     
-    const origin = req.headers.origin;
-    if (allowedOrigins.includes(origin)) {
-        res.setHeader('Access-Control-Allow-Origin', origin);
-    }
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    const origin = event.headers.origin;
+    const headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        ...(allowedOrigins.includes(origin) && { 'Access-Control-Allow-Origin': origin })
+    };
 
     // Handle preflight OPTIONS request
-    if (req.method === 'OPTIONS') {
-        return res.status(200).end();
+    if (event.httpMethod === 'OPTIONS') {
+        return {
+            statusCode: 200,
+            headers,
+            body: ''
+        };
     }
 
     // Only allow POST requests
-    if (req.method !== 'POST') {
-        return res.status(405).json({ 
-            error: 'Method not allowed',
-            message: 'Only POST requests are supported' 
-        });
+    if (event.httpMethod !== 'POST') {
+        return {
+            statusCode: 405,
+            headers,
+            body: JSON.stringify({ 
+                error: 'Method not allowed',
+                message: 'Only POST requests are supported' 
+            })
+        };
     }
 
     try {
-        // Validate request body
-        const { images, prompt } = req.body;
+        // Parse request body
+        const body = typeof event.body === 'string' ? JSON.parse(event.body) : event.body;
+        const { images, prompt } = body;
 
         if (!images || !Array.isArray(images) || images.length === 0) {
-            return res.status(400).json({ 
-                error: 'Invalid request',
-                message: 'Missing or invalid "images" array in request body' 
-            });
+            return {
+                statusCode: 400,
+                headers,
+                body: JSON.stringify({ 
+                    error: 'Invalid request',
+                    message: 'Missing or invalid "images" array in request body' 
+                })
+            };
         }
 
         if (!prompt || typeof prompt !== 'string') {
-            return res.status(400).json({ 
-                error: 'Invalid request',
-                message: 'Missing or invalid "prompt" string in request body' 
-            });
+            return {
+                statusCode: 400,
+                headers,
+                body: JSON.stringify({ 
+                    error: 'Invalid request',
+                    message: 'Missing or invalid "prompt" string in request body' 
+                })
+            };
         }
 
         // Validate image data URLs
         for (const image of images) {
             if (!image.startsWith('data:image/')) {
-                return res.status(400).json({ 
-                    error: 'Invalid image format',
-                    message: 'All images must be valid data URLs starting with "data:image/"' 
-                });
+                return {
+                    statusCode: 400,
+                    headers,
+                    body: JSON.stringify({ 
+                        error: 'Invalid image format',
+                        message: 'All images must be valid data URLs starting with "data:image/"' 
+                    })
+                };
             }
         }
 
@@ -205,21 +240,29 @@ export default async function handler(req: any, res: any) {
         const imageUrl = await generateStyleImage(images, prompt);
 
         // Return the generated image URL
-        return res.status(200).json({ 
-            imageUrl,
-            success: true,
-            message: 'Image generated successfully'
-        });
+        return {
+            statusCode: 200,
+            headers,
+            body: JSON.stringify({ 
+                imageUrl,
+                success: true,
+                message: 'Image generated successfully'
+            })
+        };
 
     } catch (error) {
         console.error('Error in generate API function:', error);
         
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         
-        return res.status(500).json({ 
-            error: 'Image generation failed',
-            message: errorMessage,
-            success: false 
-        });
+        return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({ 
+                error: 'Image generation failed',
+                message: errorMessage,
+                success: false 
+            })
+        };
     }
 }
