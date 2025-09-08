@@ -14,11 +14,6 @@ interface NetlifyEvent {
     body: string | null;
 }
 
-interface NetlifyResponse {
-    statusCode: number;
-    headers: Record<string, string>;
-    body: string;
-}
 
 // Server-side API key access
 const API_KEY = process.env.GEMINI_API_KEY;
@@ -158,7 +153,7 @@ async function generateStyleImage(imageDataUrls: string[], prompt: string): Prom
 }
 
 // --- Netlify Serverless Function Handler ---
-export default async function handler(event: NetlifyEvent): Promise<NetlifyResponse> {
+export const handler = async (event: NetlifyEvent): Promise<Response> => {
     // Enable CORS for frontend requests with security restrictions
     const allowedOrigins = process.env.NODE_ENV === 'production' 
         ? (process.env.ALLOWED_ORIGINS?.split(',') || ['https://instant-remodel.netlify.app'])
@@ -174,23 +169,21 @@ export default async function handler(event: NetlifyEvent): Promise<NetlifyRespo
 
     // Handle preflight OPTIONS request
     if (event.httpMethod === 'OPTIONS') {
-        return {
-            statusCode: 200,
-            headers,
-            body: ''
-        };
+        return new Response('', {
+            status: 200,
+            headers
+        });
     }
 
     // Only allow POST requests
     if (event.httpMethod !== 'POST') {
-        return {
-            statusCode: 405,
-            headers,
-            body: JSON.stringify({ 
-                error: 'Method not allowed',
-                message: 'Only POST requests are supported' 
-            })
-        };
+        return new Response(JSON.stringify({ 
+            error: 'Method not allowed',
+            message: 'Only POST requests are supported' 
+        }), {
+            status: 405,
+            headers
+        });
     }
 
     try {
@@ -199,38 +192,35 @@ export default async function handler(event: NetlifyEvent): Promise<NetlifyRespo
         const { images, prompt } = body;
 
         if (!images || !Array.isArray(images) || images.length === 0) {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ 
-                    error: 'Invalid request',
-                    message: 'Missing or invalid "images" array in request body' 
-                })
-            };
+            return new Response(JSON.stringify({ 
+                error: 'Invalid request',
+                message: 'Missing or invalid "images" array in request body' 
+            }), {
+                status: 400,
+                headers
+            });
         }
 
         if (!prompt || typeof prompt !== 'string') {
-            return {
-                statusCode: 400,
-                headers,
-                body: JSON.stringify({ 
-                    error: 'Invalid request',
-                    message: 'Missing or invalid "prompt" string in request body' 
-                })
-            };
+            return new Response(JSON.stringify({ 
+                error: 'Invalid request',
+                message: 'Missing or invalid "prompt" string in request body' 
+            }), {
+                status: 400,
+                headers
+            });
         }
 
         // Validate image data URLs
         for (const image of images) {
             if (!image.startsWith('data:image/')) {
-                return {
-                    statusCode: 400,
-                    headers,
-                    body: JSON.stringify({ 
-                        error: 'Invalid image format',
-                        message: 'All images must be valid data URLs starting with "data:image/"' 
-                    })
-                };
+                return new Response(JSON.stringify({ 
+                    error: 'Invalid image format',
+                    message: 'All images must be valid data URLs starting with "data:image/"' 
+                }), {
+                    status: 400,
+                    headers
+                });
             }
         }
 
@@ -240,29 +230,27 @@ export default async function handler(event: NetlifyEvent): Promise<NetlifyRespo
         const imageUrl = await generateStyleImage(images, prompt);
 
         // Return the generated image URL
-        return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify({ 
-                imageUrl,
-                success: true,
-                message: 'Image generated successfully'
-            })
-        };
+        return new Response(JSON.stringify({ 
+            imageUrl,
+            success: true,
+            message: 'Image generated successfully'
+        }), {
+            status: 200,
+            headers
+        });
 
     } catch (error) {
         console.error('Error in generate API function:', error);
         
         const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
         
-        return {
-            statusCode: 500,
-            headers,
-            body: JSON.stringify({ 
-                error: 'Image generation failed',
-                message: errorMessage,
-                success: false 
-            })
-        };
+        return new Response(JSON.stringify({ 
+            error: 'Image generation failed',
+            message: errorMessage,
+            success: false 
+        }), {
+            status: 500,
+            headers
+        });
     }
-}
+};
